@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEngine.UIElements;
 using UnityEngine;
 
@@ -7,8 +6,6 @@ public partial class MarqueeLabel : Label
 {
     private float _scrollSpeed = 10f;
     private float _pauseTime = 1f;
-
-    private VisualElement _marqueeContainer;
 
     [UxmlAttribute("scroll-speed")]
     public float ScrollSpeed
@@ -24,29 +21,30 @@ public partial class MarqueeLabel : Label
         set => _pauseTime = value;
     }
 
-    public MarqueeLabel()
+    public MarqueeLabel() =>
+        RegisterCallback<GeometryChangedEvent>(OnFirstGeometryChanged);
+
+    private void OnFirstGeometryChanged(GeometryChangedEvent e)
     {
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-#else
-        RuntimeInit();
-#endif
+        if (_marqueeContainer == null && parent != null)
+        {
+            RuntimeInitialization();
+            // Unregister to ensure this only runs once
+            UnregisterCallback<GeometryChangedEvent>(OnFirstGeometryChanged);
+        }
     }
 
-#if UNITY_EDITOR
-    private void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state)
-    {
-        if (state == UnityEditor.PlayModeStateChange.EnteredPlayMode)
-            RuntimeInit();
-    }
-#endif
-
-    private void RuntimeInit()
+    private VisualElement _marqueeContainer;
+    private void RuntimeInitialization()
     {
         schedule.Execute(() =>
         {
             if (parent == null)
+            {
+                // Try again on the next frame
+                RuntimeInitialization();
                 return;
+            }
 
             _marqueeContainer = new VisualElement();
             _marqueeContainer.style.position = resolvedStyle.position;
