@@ -1,118 +1,174 @@
-using UnityEngine;
+using System.Linq;
 using UnityEngine.UIElements;
+using UnityEngine;
 
 [UxmlElement]
-public partial class MarqueeLabel : VisualElement
+public partial class MarqueeLabel : Label
 {
-    private Label _textLabel;
-    private float _scrollSpeed = 50f;
+    private float _scrollSpeed = 10f;
     private float _pauseTime = 1f;
-    private float _timer;
-    private bool _scrolling;
-    private float _startPosition;
-    private float _endPosition;
-    private bool _atStart = true;
 
-    [UxmlAttribute("text")]
-    public string Text
-    {
-        get => _textLabel?.text;
-        set => SetText(value);
-    }
+    private VisualElement _marqueeContainer;
 
     [UxmlAttribute("scroll-speed")]
     public float ScrollSpeed
     {
         get => _scrollSpeed;
-        set => SetScrollSpeed(value);
+        set => _scrollSpeed = value;
     }
 
     [UxmlAttribute("pause-time")]
     public float PauseTime
     {
         get => _pauseTime;
-        set => SetPauseTime(value);
+        set => _pauseTime = value;
     }
 
     public MarqueeLabel()
     {
-        style.overflow = Overflow.Hidden;
-
-        _textLabel = new Label();
-        _textLabel.style.position = Position.Absolute;
-        _textLabel.style.left = 0;
-        hierarchy.Add(_textLabel);
-
-        RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
-        schedule.Execute(Update).Every(16);
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+#else
+        RuntimeInit();
+#endif
     }
 
-    public void Setup(string text, float scrollSpeed, float pauseTime)
+#if UNITY_EDITOR
+    private void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state)
     {
-        SetText(text);
-        _scrollSpeed = scrollSpeed;
-        _pauseTime = pauseTime;
+        if (state == UnityEditor.PlayModeStateChange.EnteredPlayMode)
+            RuntimeInit();
+    }
+#endif
+
+    private void RuntimeInit()
+    {
+        schedule.Execute(() =>
+        {
+            if (parent == null)
+                return;
+
+            _marqueeContainer = new VisualElement();
+            _marqueeContainer.style.position = resolvedStyle.position;
+            if (resolvedStyle.position == Position.Absolute)
+            {
+                _marqueeContainer.style.left = resolvedStyle.left;
+                _marqueeContainer.style.top = resolvedStyle.top;
+                _marqueeContainer.style.right = resolvedStyle.right;
+                _marqueeContainer.style.bottom = resolvedStyle.bottom;
+            }
+            _marqueeContainer.style.width = resolvedStyle.width;
+            _marqueeContainer.style.height = resolvedStyle.height;
+            _marqueeContainer.style.flexDirection = FlexDirection.Row;
+            _marqueeContainer.style.overflow = Overflow.Hidden;
+
+            this.style.position = Position.Absolute;
+            this.style.width = StyleKeyword.Auto;
+
+            int index = parent.IndexOf(this);
+            parent.Insert(index, _marqueeContainer);
+            parent.Remove(this);
+
+            _marqueeContainer.Add(this);
+
+            _marqueeContainer.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+            schedule.Execute(Update).Every(16);
+        });
     }
 
-    public void SetText(string text) =>
-        _textLabel.text = text;
-
-    public void SetScrollSpeed(float speed) =>
-        _scrollSpeed = speed;
-
-    public void SetPauseTime(float time) =>
-        _pauseTime = time;
-
-    private void OnGeometryChanged(GeometryChangedEvent evt)
+    private void OnGeometryChanged(GeometryChangedEvent e)
     {
-        float textWidth = _textLabel.resolvedStyle.width;
-        float containerWidth = resolvedStyle.width;
+        float textWidth = this.resolvedStyle.width;
+        float containerWidth = _marqueeContainer.resolvedStyle.width;
 
         if (textWidth > containerWidth)
         {
-            _scrolling = true;
-            _startPosition = 0f;
-            _endPosition = containerWidth - textWidth;
-            _textLabel.style.left = _startPosition;
             _timer = _pauseTime;
-            _atStart = true;
+            _scrolling = true;
+            _atStartPosition = true;
+            _endPosition = containerWidth - textWidth;
+            this.style.left = 0;
         }
         else
         {
             _scrolling = false;
-            _textLabel.style.left = 0;
+            this.style.left = 0;
         }
     }
 
+    private float _timer;
+    private bool _scrolling;
+    private bool _atStartPosition = true;
+    private float _endPosition;
+    private float _currentLeft;
     private void Update()
     {
         if (!_scrolling)
             return;
 
-        if (_timer > 0)
+        if (_timer > 0f)
         {
             _timer -= Time.deltaTime;
             return;
         }
 
-        float currentLeft = _textLabel.style.left.value.value;
-
-        if (_atStart)
+        if (_atStartPosition)
         {
-            currentLeft -= _scrollSpeed * Time.deltaTime;
-            if (currentLeft <= _endPosition)
+            _currentLeft -= _scrollSpeed * this.resolvedStyle.fontSize * Time.deltaTime;
+            if (_currentLeft <= _endPosition)
             {
-                currentLeft = _endPosition;
+                _currentLeft = _endPosition;
                 _timer = _pauseTime;
-                _atStart = false;
+                _atStartPosition = false;
             }
-            _textLabel.style.left = currentLeft;
         }
         else
         {
+            _currentLeft = 0;
             _timer = _pauseTime;
-            _textLabel.style.left = _startPosition;
-            _atStart = true;
+            _atStartPosition = true;
+        }
+
+        this.style.left = _currentLeft;
+    }
+}
+
+public static class AutomaticMarqueeInjector
+{
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void OnSceneLoaded()
+    {
+        // Find all UIDocuments in the scene
+        var documents = GameObject.FindObjectsByType<UIDocument>(FindObjectsSortMode.None);
+        foreach (var document in documents)
+            if (document != null && document.rootVisualElement != null)
+                TransformLabels(document.rootVisualElement);
+    }
+
+    private static void TransformLabels(VisualElement root)
+    {
+        // Traverse children to find text elements
+        foreach (var child in root.Children().ToList())
+        {
+            if (child is Label label)
+                if (label.name != "MarqueeTextLabel" && !string.IsNullOrEmpty(label.text))
+                    ReplaceWithMarqueeLabel(label);
+
+            TransformLabels(child);
         }
     }
+
+    private static void ReplaceWithMarqueeLabel(Label original)
+    {
+        var parent = original.parent;
+        if (parent == null)
+            return;
+
+        //var marquee = new MarqueeLabel();
+
+        //int index = parent.IndexOf(original);
+        //parent.Remove(original);
+        //parent.Insert(index, marquee);
+    }
+
 }
