@@ -74,29 +74,10 @@ public partial class MarqueeLabel : Label
         });
     }
 
-    private void OnGeometryChanged(GeometryChangedEvent e)
-    {
-        float textWidth = this.resolvedStyle.width;
-        float containerWidth = _marqueeContainer.resolvedStyle.width;
-
-        if (textWidth > containerWidth)
-        {
-            _timer = _pauseTime;
-            _scrolling = true;
-            _atStartPosition = true;
-            _endPosition = containerWidth - textWidth;
-            this.style.left = 0;
-        }
-        else
-        {
-            _scrolling = false;
-            this.style.left = 0;
-        }
-    }
-
     private float _timer;
+    private float _intervalTime = 3f;
     private bool _scrolling;
-    private bool _atStartPosition = true;
+    private bool _isScrolling = true;
     private float _endPosition;
     private float _currentLeft;
     private void Update()
@@ -110,23 +91,43 @@ public partial class MarqueeLabel : Label
             return;
         }
 
-        if (_atStartPosition)
+        if (_isScrolling)
         {
             _currentLeft -= _scrollSpeed * this.resolvedStyle.fontSize * Time.deltaTime;
             if (_currentLeft <= _endPosition)
             {
                 _currentLeft = _endPosition;
                 _timer = _pauseTime;
-                _atStartPosition = false;
+                _isScrolling = false;
             }
         }
-        else
+        else if ((Time.time % _intervalTime) < 1)
         {
             _currentLeft = 0;
             _timer = _pauseTime;
-            _atStartPosition = true;
+            _isScrolling = true;
         }
 
         this.style.left = _currentLeft;
+    }
+
+    private void OnGeometryChanged(GeometryChangedEvent e)
+    {
+        float textWidth = this.resolvedStyle.width;
+        float containerWidth = _marqueeContainer.resolvedStyle.width;
+
+        if (textWidth > containerWidth)
+        {
+            _timer = _pauseTime;
+            _scrolling = true;
+            _isScrolling = true;
+            _endPosition = containerWidth - textWidth;
+            this.style.left = 0;
+        }
+        else
+        {
+            _scrolling = false;
+            this.style.left = 0;
+        }
     }
 }
