@@ -1,5 +1,5 @@
 {
-    "name": "UnityEssentials.UIToolkitMarqueeLabel",
+    "name": "UnityEssentials.UI.Toolkit.MarqueeLabel",
     "rootNamespace": "UnityEssentials",
     "references": [],
     "includePlatforms": [],
