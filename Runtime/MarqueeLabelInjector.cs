@@ -7,7 +7,7 @@ public class MarqueeLabelInjector : MonoBehaviour
     //[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void OnSceneLoaded()
     {
-        var documents = FindObjectsByType<UIDocument>(FindObjectsSortMode.None);
+        var documents = FindObjectsByType<UIDocument>();
         foreach (var document in documents)
             document.gameObject.AddComponent<MarqueeLabelInjector>();
     }
