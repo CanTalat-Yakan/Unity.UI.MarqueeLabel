@@ -1,133 +1,136 @@
 using UnityEngine.UIElements;
 using UnityEngine;
 
-[UxmlElement]
-public partial class MarqueeLabel : Label
+namespace UnityEssentials
 {
-    private float _scrollSpeed = 10f;
-    private float _pauseTime = 1f;
-
-    [UxmlAttribute("scroll-speed")]
-    public float ScrollSpeed
+    [UxmlElement]
+    public partial class MarqueeLabel : Label
     {
-        get => _scrollSpeed;
-        set => _scrollSpeed = value;
-    }
+        private float _scrollSpeed = 10f;
+        private float _pauseTime = 1f;
 
-    [UxmlAttribute("pause-time")]
-    public float PauseTime
-    {
-        get => _pauseTime;
-        set => _pauseTime = value;
-    }
-
-    public MarqueeLabel() =>
-        RegisterCallback<GeometryChangedEvent>(OnFirstGeometryChanged);
-
-    private void OnFirstGeometryChanged(GeometryChangedEvent e)
-    {
-        if (_marqueeContainer == null && parent != null)
+        [UxmlAttribute("scroll-speed")]
+        public float ScrollSpeed
         {
-            RuntimeInitialization();
-            // Unregister to ensure this only runs once
-            UnregisterCallback<GeometryChangedEvent>(OnFirstGeometryChanged);
+            get => _scrollSpeed;
+            set => _scrollSpeed = value;
         }
-    }
 
-    private VisualElement _marqueeContainer;
-    private void RuntimeInitialization()
-    {
-        schedule.Execute(() =>
+        [UxmlAttribute("pause-time")]
+        public float PauseTime
         {
-            if (parent == null)
+            get => _pauseTime;
+            set => _pauseTime = value;
+        }
+
+        public MarqueeLabel() =>
+            RegisterCallback<GeometryChangedEvent>(OnFirstGeometryChanged);
+
+        private void OnFirstGeometryChanged(GeometryChangedEvent e)
+        {
+            if (_marqueeContainer == null && parent != null)
             {
-                // Try again on the next frame
                 RuntimeInitialization();
+                // Unregister to ensure this only runs once
+                UnregisterCallback<GeometryChangedEvent>(OnFirstGeometryChanged);
+            }
+        }
+
+        private VisualElement _marqueeContainer;
+        private void RuntimeInitialization()
+        {
+            schedule.Execute(() =>
+            {
+                if (parent == null)
+                {
+                    // Try again on the next frame
+                    RuntimeInitialization();
+                    return;
+                }
+
+                _marqueeContainer = new VisualElement();
+                _marqueeContainer.style.position = resolvedStyle.position;
+                if (resolvedStyle.position == Position.Absolute)
+                {
+                    _marqueeContainer.style.left = resolvedStyle.left;
+                    _marqueeContainer.style.top = resolvedStyle.top;
+                    _marqueeContainer.style.right = resolvedStyle.right;
+                    _marqueeContainer.style.bottom = resolvedStyle.bottom;
+                }
+                _marqueeContainer.style.width = resolvedStyle.width;
+                _marqueeContainer.style.height = resolvedStyle.height;
+                _marqueeContainer.style.flexDirection = FlexDirection.Row;
+                _marqueeContainer.style.overflow = Overflow.Hidden;
+
+                this.style.position = Position.Absolute;
+                this.style.width = StyleKeyword.Auto;
+
+                int index = parent.IndexOf(this);
+                parent.Insert(index, _marqueeContainer);
+                parent.Remove(this);
+
+                _marqueeContainer.Add(this);
+
+                _marqueeContainer.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+                schedule.Execute(Update).Every(16);
+            });
+        }
+
+        private float _timer;
+        private float _intervalTime = 3f;
+        private bool _scrolling;
+        private bool _isScrolling = true;
+        private float _endPosition;
+        private float _currentLeft;
+        private void Update()
+        {
+            if (!_scrolling)
+                return;
+
+            if (_timer > 0f)
+            {
+                _timer -= Time.deltaTime;
                 return;
             }
 
-            _marqueeContainer = new VisualElement();
-            _marqueeContainer.style.position = resolvedStyle.position;
-            if (resolvedStyle.position == Position.Absolute)
+            if (_isScrolling)
             {
-                _marqueeContainer.style.left = resolvedStyle.left;
-                _marqueeContainer.style.top = resolvedStyle.top;
-                _marqueeContainer.style.right = resolvedStyle.right;
-                _marqueeContainer.style.bottom = resolvedStyle.bottom;
+                _currentLeft -= _scrollSpeed * this.resolvedStyle.fontSize * Time.deltaTime;
+                if (_currentLeft <= _endPosition)
+                {
+                    _currentLeft = _endPosition;
+                    _timer = _pauseTime;
+                    _isScrolling = false;
+                }
             }
-            _marqueeContainer.style.width = resolvedStyle.width;
-            _marqueeContainer.style.height = resolvedStyle.height;
-            _marqueeContainer.style.flexDirection = FlexDirection.Row;
-            _marqueeContainer.style.overflow = Overflow.Hidden;
-
-            this.style.position = Position.Absolute;
-            this.style.width = StyleKeyword.Auto;
-
-            int index = parent.IndexOf(this);
-            parent.Insert(index, _marqueeContainer);
-            parent.Remove(this);
-
-            _marqueeContainer.Add(this);
-
-            _marqueeContainer.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
-            schedule.Execute(Update).Every(16);
-        });
-    }
-
-    private float _timer;
-    private float _intervalTime = 3f;
-    private bool _scrolling;
-    private bool _isScrolling = true;
-    private float _endPosition;
-    private float _currentLeft;
-    private void Update()
-    {
-        if (!_scrolling)
-            return;
-
-        if (_timer > 0f)
-        {
-            _timer -= Time.deltaTime;
-            return;
-        }
-
-        if (_isScrolling)
-        {
-            _currentLeft -= _scrollSpeed * this.resolvedStyle.fontSize * Time.deltaTime;
-            if (_currentLeft <= _endPosition)
+            else if ((Time.time % _intervalTime) < 1)
             {
-                _currentLeft = _endPosition;
+                _currentLeft = 0;
                 _timer = _pauseTime;
-                _isScrolling = false;
+                _isScrolling = true;
             }
-        }
-        else if ((Time.time % _intervalTime) < 1)
-        {
-            _currentLeft = 0;
-            _timer = _pauseTime;
-            _isScrolling = true;
+
+            this.style.left = _currentLeft;
         }
 
-        this.style.left = _currentLeft;
-    }
-
-    private void OnGeometryChanged(GeometryChangedEvent e)
-    {
-        float textWidth = this.resolvedStyle.width;
-        float containerWidth = _marqueeContainer.resolvedStyle.width;
-
-        if (textWidth > containerWidth)
+        private void OnGeometryChanged(GeometryChangedEvent e)
         {
-            _timer = _pauseTime;
-            _scrolling = true;
-            _isScrolling = true;
-            _endPosition = containerWidth - textWidth;
-            this.style.left = 0;
-        }
-        else
-        {
-            _scrolling = false;
-            this.style.left = 0;
+            float textWidth = this.resolvedStyle.width;
+            float containerWidth = _marqueeContainer.resolvedStyle.width;
+
+            if (textWidth > containerWidth)
+            {
+                _timer = _pauseTime;
+                _scrolling = true;
+                _isScrolling = true;
+                _endPosition = containerWidth - textWidth;
+                this.style.left = 0;
+            }
+            else
+            {
+                _scrolling = false;
+                this.style.left = 0;
+            }
         }
     }
 }

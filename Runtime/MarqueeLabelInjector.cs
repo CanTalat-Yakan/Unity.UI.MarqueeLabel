@@ -2,60 +2,63 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-public class MarqueeLabelInjector : MonoBehaviour
+namespace UnityEssentials
 {
-    //[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void OnSceneLoaded()
+    public class MarqueeLabelInjector : MonoBehaviour
     {
-        var documents = FindObjectsByType<UIDocument>();
-        foreach (var document in documents)
-            document.gameObject.AddComponent<MarqueeLabelInjector>();
-    }
-
-    public void Start()
-    {
-        var document = GetComponent<UIDocument>();
-        if (document != null && document.rootVisualElement != null)
-            TransformLabels(document.rootVisualElement);
-    }
-
-    private static void TransformLabels(VisualElement root)
-    {
-        foreach (var child in root.Children().ToList())
+        //[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void OnSceneLoaded()
         {
-            if (child is Label label && child is not MarqueeLabel)
-                ReplaceWithMarqueeLabel(label);
-
-            TransformLabels(child);
+            var documents = FindObjectsByType<UIDocument>();
+            foreach (var document in documents)
+                document.gameObject.AddComponent<MarqueeLabelInjector>();
         }
-    }
 
-    private static void ReplaceWithMarqueeLabel(Label original)
-    {
-        var parent = original.parent;
-        if (parent == null)
-            return;
-
-        var marquee = new MarqueeLabel()
+        public void Start()
         {
-            text = original.text,
-            name = original.name,
-            ScrollSpeed = 10f,
-            PauseTime = 1f
-        };
-        
-        foreach (var styleClass in original.GetClasses())
-            marquee.AddToClassList(styleClass);
+            var document = GetComponent<UIDocument>();
+            if (document != null && document.rootVisualElement != null)
+                TransformLabels(document.rootVisualElement);
+        }
 
-        int index = parent.IndexOf(original);
-        parent.Remove(original);
-        parent.Insert(index, marquee);
-
-        marquee.RegisterCallback<GeometryChangedEvent>(e =>
+        private static void TransformLabels(VisualElement root)
         {
-            marquee.style.fontSize = original.resolvedStyle.fontSize;
-            marquee.style.width = original.resolvedStyle.width;
-            marquee.style.height = original.resolvedStyle.height;
-        });
+            foreach (var child in root.Children().ToList())
+            {
+                if (child is Label label && child is not MarqueeLabel)
+                    ReplaceWithMarqueeLabel(label);
+
+                TransformLabels(child);
+            }
+        }
+
+        private static void ReplaceWithMarqueeLabel(Label original)
+        {
+            var parent = original.parent;
+            if (parent == null)
+                return;
+
+            var marquee = new MarqueeLabel()
+            {
+                text = original.text,
+                name = original.name,
+                ScrollSpeed = 10f,
+                PauseTime = 1f
+            };
+
+            foreach (var styleClass in original.GetClasses())
+                marquee.AddToClassList(styleClass);
+
+            int index = parent.IndexOf(original);
+            parent.Remove(original);
+            parent.Insert(index, marquee);
+
+            marquee.RegisterCallback<GeometryChangedEvent>(e =>
+            {
+                marquee.style.fontSize = original.resolvedStyle.fontSize;
+                marquee.style.width = original.resolvedStyle.width;
+                marquee.style.height = original.resolvedStyle.height;
+            });
+        }
     }
 }
